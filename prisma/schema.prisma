@@ -1,0 +1,61 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id             String       @id @default(cuid())
+  name           String
+  email          String       @unique
+  emailVerified  DateTime?
+  image          String?
+  hashedPassword String
+  isAdmin        Boolean      @default(false)
+
+  trackings       Tracking[]     @relation("UserTrackings")
+
+  upsAccessToken   String?
+  upsRefreshToken  String?
+  upsTokenExpires  DateTime?
+
+  // Define the relation with InviteCode
+  inviteCodeId   String?      @unique
+  inviteCode     InviteCode?  @relation(fields: [inviteCodeId], references: [id], name: "UserInviteCode")
+
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+}
+
+model InviteCode {
+  id        String  @id @default(cuid())
+  code      String  @unique
+  createdBy String
+  createdAt DateTime @default(now())
+  used      Boolean  @default(false)
+
+  // Reference the relation without fields and references
+  usedBy    User?   @relation(name: "UserInviteCode")
+
+  // Remove usedById and associated fields to prevent conflict
+  // usedById  String?  @unique
+
+  // Alternatively, if you need usedById in InviteCode:
+  // usedById  String?  @unique
+  // usedBy    User?   @relation(name: "UserInviteCode", fields: [usedById], references: [id])
+
+  // If you include usedById, remove inviteCodeId from User to avoid conflicting relations
+}
+
+model Tracking {
+  id             String     @id @default(cuid())
+  name           String
+  trackingNumber String
+  user           User       @relation(fields: [userId], references: [id], name: "UserTrackings")
+  userId         String
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+}
