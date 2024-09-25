@@ -10,8 +10,8 @@ export async function POST(request: Request) {
     // Log the parsed data
     console.log("Parsed request body:", { email, password, name, inviteCode });
 
-    // Check for missing fields
-    if (!email || !password || !name || !inviteCode) {
+    // Check for missing fields (inviteCode is now optional)
+    if (!email || !password || !name) {
       return NextResponse.json({ error: "Missing fields" }, { status: 400 });
     }
 
@@ -22,37 +22,50 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "Email already registered" }, { status: 400 });
     }
 
-    // Validate the invite code
-    const code = await prisma.inviteCode.findUnique({
-      where: { code: inviteCode },
-    });
+    // Initialize a variable for the invite code (if provided)
+    let code;
+    if (inviteCode) {
+      // Validate the invite code
+      code = await prisma.inviteCode.findUnique({
+        where: { code: inviteCode },
+      });
 
-    console.log("Invite code fetched from database:", code);
+      console.log("Invite code fetched from database:", code);
 
-    if (!code || code.used) {
-      return NextResponse.json({ error: "Invalid or used invite code" }, { status: 400 });
+      if (!code || code.used) {
+        return NextResponse.json({ error: "Invalid or used invite code" }, { status: 400 });
+      }
     }
 
     // Hash the password
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Create the new user and associate the invite code
+    // Prepare user data
+    const userData: any = {
+      email,
+      name,
+      hashedPassword,
+    };
+
+    // Associate the invite code if it was provided
+    if (code) {
+      userData.inviteCode = { connect: { id: code.id } };
+    }
+
+    // Create the new user
     const user = await prisma.user.create({
-      data: {
-        email,
-        name,
-        hashedPassword,
-        inviteCode: { connect: { id: code.id } },
-      },
+      data: userData,
     });
 
-    // Mark the invite code as used
-    await prisma.inviteCode.update({
-      where: { id: code.id },
-      data: {
-        used: true,
-      },
-    });
+    // Mark the invite code as used if it was provided
+    if (code) {
+      await prisma.inviteCode.update({
+        where: { id: code.id },
+        data: {
+          used: true,
+        },
+      });
+    }
 
     return NextResponse.json({ message: "User registered successfully", user });
   } catch (error) {
